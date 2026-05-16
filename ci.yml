@@ -1,0 +1,44 @@
+name: APIS Pipeline CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline (synthetic data mode)
+        run: python setup.py
+
+      - name: Validate outputs
+        run: |
+          python -c "
+          import pandas as pd
+          from pathlib import Path
+          outputs = list(Path('data/processed').glob('*.csv'))
+          assert len(outputs) >= 5, f'Expected >=5 output files, got {len(outputs)}'
+          for f in outputs:
+              df = pd.read_csv(f)
+              assert len(df) > 0, f'{f.name} is empty'
+              print(f'  ✓ {f.name}: {len(df)} rows')
+          print(f'Pipeline produced {len(outputs)} output tables.')
+          "
+
+      - name: Upload processed data
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-data
+          path: data/processed/
